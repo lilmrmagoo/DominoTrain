@@ -9,6 +9,10 @@ class Domino():
         elif (self.sides[1] == side): return 1
     def calc_points(self):
         return self.sides[0] + self.sides[1]
+    def __str__(self):
+        return str(self.sides)
+
+
 class BoneYard():
     def __init__(self):
         self.dominos = []
@@ -23,6 +27,8 @@ class BoneYard():
     def draw(self):
         if len(self.dominos) == 0: return False
         return self.dominos.pop()
+
+
 class Train():
     startingSide = 12
     def __init__(self, id):
@@ -74,6 +80,8 @@ class Player():
         else: return False
     def pointsInHand(self):
         return functools.reduce(lambda acc, domino: acc + domino.calc_points(), self.hand, 0)
+    def __str__(self):
+        return f"id:{self.id} train:{self.train.id}"
     
 
 class BoardState():
@@ -82,13 +90,15 @@ class BoardState():
         self.mexican = mexican 
         self.trains = trains
     #train up returns only sides that are on trains with thier trains up
-    def getPlacements(self, trainUp: bool, exclude:list[Train]):
-        trains = self.trains.append(self.mexican)
+    #maybe this signature should be changed to just take a list of trains? and let caller deal with filtering?
+    def getPlacements(self, trainUp: bool,include:list[Train]=[], exclude:list[Train]=[]):
+        trains = [*self.trains,self.mexican]
         sides = []
         if trainUp:
             for train in trains:
-                if train.trainUp and train not in exclude:
-                    for side in train.openSides: sides.append((train.id,side))
+                if (train in include or train.trainUp) and train not in exclude:
+                    for side in train.openSides: 
+                        sides.append((train.id,side))
         else:
             for train in trains: 
                 if train not in exclude:
@@ -105,37 +115,40 @@ class BoardState():
                     eval = domino.evalute_side(side)
                     if( eval is not None): plays.append((domino.sides, (player.train.id,side))) 
         else:
-            for placement in self.getPlacements(trainUp=True):
+            for placement in self.getPlacements(trainUp=True, include=[player.train]):
                 for domino in player.hand:
-                    eval = domino.evalute_side(side)
+                    eval = domino.evalute_side(placement[1])
                     if( eval is not None): plays.append((domino.sides, placement))
         return plays
-
-
-
-                        
 
 
 class Game():
     def __init__(self,numPlayers:int):
         self.boneyard = BoneYard()
         self.players = []
+        self.trains = []
         self.numPlayers = numPlayers
         if(numPlayers<= 4): Player.handSize = 15
         elif(numPlayers<=6): Player.handSize = 12
         elif(numPlayers<=8): Player.handSize = 10
+        Player.nextID = 0
         for _ in range(numPlayers): 
             self.players.append(Player(self.boneyard))
         doubles = [player.highestDouble() for player in self.players]
         highestDouble = max(doubles)
         firstPlayer = doubles.index(highestDouble)
         self.currentPlayer = firstPlayer
-        self.players[firstPlayer].play((highestDouble,highestDouble),0,firstDouble=True) #removing first double
-        Train.startingSide = max(doubles)
-        self.stepPlayer() #first player skiping turn
-        for player in self.players: player.intializeTrain()
+        firstDomino = self.players[firstPlayer].getDominoFromSides(highestDouble,highestDouble)
+        for player in self.players: 
+            player.intializeTrain()
+            self.trains.append(player.train)
         if (len(self.players)<8): self.mexican = Train(8)
+        Train.startingSide = max(doubles)
+        self.players[firstPlayer].play(firstDomino,0,firstDouble=True) #removing first double
+        self.stepPlayer() #first player skiping turn
     def stepPlayer(self):
         self.currentPlayer += 1 
         if (self.currentPlayer>=self.numPlayers): self.currentPlayer = 0# looping if its not an actual player
+
+
 
