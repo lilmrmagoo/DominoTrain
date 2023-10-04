@@ -1,0 +1,7 @@
+#come up with structure for denoting domino and placement
+        #domino is (side1, side2)
+        #placement is (train, side)
+        #train is int 0-8. 0 is player, 1-7 are players relative to how many turns away from agent is, 8 is mexican
+        # action is (domino,placement)
+        # ex: [((12,11),(0,11)),]
+        # MultiDiscrete(np.array([[13, 13], [9, 13]])) this should do the action space
