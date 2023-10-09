@@ -74,18 +74,29 @@ class Player():
             if (domino.sides == (s1,s2) or domino.sides == (s2,s1)):
                 return domino
     def play(self, domino:Domino, placement:int, train:Train|None=None,firstDouble:bool=False):
-        if train is None: train = self.train
+        selfTrain = False
+        played = False
+        if train is None: 
+            train = self.train
+            selfTrain = True
         if firstDouble: 
             self.hand.remove(domino)
-            return
-        if train.add(placement, domino) != False:
+            played = True
+        elif train.add(placement, domino) != False:
             self.hand.remove(domino)
-            return True
-        else: return False
+            if selfTrain: self.train.trainUp = False
+            played = True
+        if len(self.hand) <= 0: return None
+        else: return played
+        
+
     def pointsInHand(self):
         return functools.reduce(lambda acc, domino: acc + domino.calc_points(), self.hand, 0)
     def pickup(self,boneYard:BoneYard):
-        self.hand.append(boneYard.draw())
+        domino = boneYard.draw()
+        if domino is not False:
+            self.hand.append(domino)
+        return domino
     def __str__(self):
         return f"id:{self.id} train:{self.train.id}"
     
@@ -97,6 +108,7 @@ class Game():
         self.boneyard = BoneYard()
         self.players = []
         self.trains = []
+        self.done = False
         self.numPlayers = numPlayers
         if(numPlayers<= 4): Player.handSize = 15
         elif(numPlayers<=6): Player.handSize = 12
@@ -113,7 +125,8 @@ class Game():
             player.intializeTrain()
             self.trains.append(player.train)
         if (len(self.players)<8): self.mexican = Train(8)
-        Train.startingSide = max(doubles)
+        self.centerDouble = max(doubles)
+        Train.startingSide = self.centerDouble
         self.players[firstPlayer].play(firstDomino,0,firstDouble=True) #removing first double
         self.stepPlayer() #first player skiping turn
     def stepPlayer(self):
@@ -137,38 +150,51 @@ class Game():
                 return None
 
 class BoardState():
-    def __init__(self, game:Game):
-        self.mexican: Train = game.mexican
-        self.trains: list[Train] = game.trains
+    def __init__(self, trains:list[Train],centerDouble:int, mexican:Train|None = None ):
+        self.mexican = mexican
+        self.trains = trains
+        self.unsastifiedDouble = None
     #train up returns only sides that are on trains with thier trains up
     #maybe this signature should be changed to just take a list of trains? and let caller deal with filtering?
-    def getPlacements(self, trainUp: bool,include:list[Train]=[], exclude:list[Train]=[]):
+    def getPlacements(self, trainUp: bool=False,include:list[Train]=[], exclude:list[Train]=[]):
         trains = [*self.trains,self.mexican]
-        sides = []
+        placements = []
         if trainUp:
             for train in trains:
                 if (train in include or train.trainUp) and train not in exclude:
                     for side in train.openSides: 
-                        sides.append((train.id,side))
+                        placements.append((train.id,side))
         else:
             for train in trains: 
                 if train not in exclude:
-                    for side in train.openSides: sides.append((train.id,side))
-        return sides
+                    for side in train.openSides: placements.append((train.id,side))
+        return placements
     def getTrain(self, id):
         for train in self.trains:
             if train.id == id: return train
-    def availablePlays(self, player:Player):
-        plays = [] 
-        if player.train.trainUp:
-            for side in player.train.openSides:
-                for domino in player.hand:
-                    eval = domino.evalute_side(side)
-                    if( eval is not None): plays.append((domino.sides, (player.train.id,side))) 
-        else:
-            for placement in self.getPlacements(trainUp=True, include=[player.train]):
-                for domino in player.hand:
-                    eval = domino.evalute_side(placement[1])
-                    if( eval is not None): plays.append((domino.sides, placement))
+    def availablePlays(self, player:Player,placements:list|None=None):
+        plays = []
+        places = []
+        if self.unsastifiedDouble is not None:
+            places = [self.unsastifiedDouble]
+        elif placements is not None:
+            places = placements
+        elif player.train.trainUp:
+            places = [(player.id, side) for side in player.train.openSides]
+        else: places = self.getPlacements(trainUp=True, include=[player.train])
+        for placement in places:
+            for domino in player.hand:
+                eval = domino.evalute_side(placement[1])
+                if( eval is not None): plays.append((domino.sides, placement))
         return plays
-
+    def isValidPlay(self, player:Player, action:list[list]):
+        valid = False
+        plays = self.availablePlays(player)
+        for play in plays:
+            tuplist = [tuple(list) for list in action]
+            if tuple(tuplist) == play:
+                valid = True
+        return valid
+    @staticmethod
+    def fromGame(game:Game):
+        return BoardState(game.trains,game.centerDouble, game.mexican)
