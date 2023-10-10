@@ -61,10 +61,9 @@ class DominoTrainEnv(Env):
                                     continue
                                 #if possible to play pickup
                                 else:
-                                    print(f"attepmting to play pickup on {newPlacement}, train {train2}")
+                                    print(f"attepmting to play pickup on {newPlacement}, train {train}")
                                     if loop_player.play(pickupDomino,newPlacement[1],train) is None:
                                         game.done = True
-                                    game.stepPlayer()
                                     break
                                     
                             # no domino was pickedup, meaning boneyard is empty and end of game
@@ -78,14 +77,14 @@ class DominoTrainEnv(Env):
                             print(f"attempting to play {ranDomino} on {newPlacement}, player.train: {player.train}")
                             if loop_player.play(ranDomino,newPlacement[1],train) is None:
                                 game.done = True
-                            game.stepPlayer()
                             break
                         #if player has many choices to play
                         else:
                             #if ai player
                             if loop_player.id == 0:
                                 print(f"letting ai make choice for double play")
-                                bs.unsastifiedDouble = (train.id,domino.sides[0])
+                                self.game.unsastifiedDouble = (train.id,domino.sides[0])
+                                self.game.prevPlayer = player.id
                                 break
                             #if other players, random choice
                             else:
@@ -95,9 +94,7 @@ class DominoTrainEnv(Env):
                                 print(f"attempting to play {ranDomino} on {newPlacement}, player.train: {player.train}\n available plays: {plays}")
                                 if loop_player.play(ranDomino,newPlacement[1],train) is None:
                                     game.done = True
-                                game.stepPlayer()
                             break
-                else: game.stepPlayer()    
             else:
                    print("Invalid Placement")
         else:
@@ -105,60 +102,66 @@ class DominoTrainEnv(Env):
         return played
     def maskAction(self,availablActions):
         pass
-    def restRandomTurns(self, bs:BoardState):
-        for i in range(1,self.game.numPlayers):
-            player = self.game.getPlayer(i)
-            posActions = bs.availablePlays(player)
-            if len(posActions)<=0:
-                player.pickup(self.game.boneyard)
-                posActions = bs.availablePlays(player)
-                if len(posActions)>0:
-                    ranAction = posActions[0]
-                    ranDomino = player.getDominoFromSides(*ranAction[0])
-                    print(posActions, ranAction, ranDomino,player)
-                    self.play(ranDomino,ranAction[1],player,bs)
-                    self.game.stepPlayer()
-            else:
-                ranIndex = 0
-                if len(posActions)>1: ranIndex = random.randint(0, len(posActions)-1)
-                ranAction = posActions[ranIndex]
-                ranDomino = player.getDominoFromSides(*ranAction[0])
-                print(posActions, ranAction, ranDomino,player)
-                self.play(ranDomino,ranAction[1],player,bs)
-                self.game.stepPlayer()
     def step(self, action):
-        #print([str(domino) for domino in self.player.hand])
+        start_index = self.game.startingPlayer
+        players = self.game.players
+        length = len(players)
+        stateChanged = False
         reward = 0
         bs= BoardState.fromGame(self.game)
-        stateChanged = False
-        #if no action available
-        if len(bs.availablePlays(self.player))<=0:
-            self.player.pickup(self.game.boneyard)
-            posActions = bs.availablePlays(self.player)
-            if len(posActions)>0:
-                ranAction = posActions[0]
-                ranDomino = self.player.getDominoFromSides(*ranAction[0])
-                self.play(ranDomino,ranAction[1],self.player,bs)
-            self.restRandomTurns(bs)
-            stateChanged = True
-        # Check if action is valid
-        elif bs.isValidPlay(self.player,action):
-            # Apply action
-            domino = action[0]
-            domino = self.player.getDominoFromSides(*domino)
-            self.play(domino,action[1],self.player,bs)
-            reward += domino.calc_points()
-            
-            #random play for other players
-            self.restRandomTurns(bs)
-
-            stateChanged = True
-            
-        #invalid action   
+        if bs.isValidPlay(self.player,action):
+            if bs.unsastifiedDouble is not None:
+                domino = action[0]
+                domino = self.player.getDominoFromSides(*domino)
+                self.play(domino,action[1],self.player,bs)
+                reward += domino.calc_points()
+                stateChanged = True
+                start_index = self.game.nextPlayer(self.player.id)
+                length = length - 1
+                bs.unsastifiedDouble = None #probably a better way of doing this
+                self.game.unsastifiedDouble = None
+            if stateChanged or bs.unsastifiedDouble is None:    
+                for i in range(length):
+                    index = (start_index + i) % length
+                    player = players[index]
+                    posActions = bs.availablePlays(player)
+                    #if current turn is ai
+                    if player.id == 0:
+                        #if no action available
+                        if len(posActions)<=0:
+                            self.player.pickup(self.game.boneyard)
+                            posActions = bs.availablePlays(self.player)
+                            if len(posActions)>0:
+                                ranAction = posActions[0]
+                                ranDomino = self.player.getDominoFromSides(*ranAction[0])
+                                self.play(ranDomino,ranAction[1],self.player,bs)
+                                stateChanged = True
+                            # Check if action is valid
+                        else:
+                            # Apply action
+                            domino = action[0]
+                            domino = self.player.getDominoFromSides(*domino)
+                            self.play(domino,action[1],self.player,bs)
+                            reward += domino.calc_points()
+                            stateChanged = True
+                        #invalid action   
+                        
+                    else:
+                        print(f"current turn: {player}, plays: {posActions}")
+                        if len(posActions)<=0:
+                            player.pickup(self.game.boneyard)
+                            posActions = bs.availablePlays(player)
+                        if len(posActions)>0:
+                            ranIndex = 0
+                            if len(posActions)>1: ranIndex = random.randint(0, len(posActions)-1)
+                            ranAction = posActions[ranIndex]
+                            ranDomino = player.getDominoFromSides(*ranAction[0])
+                            self.play(ranDomino,ranAction[1],player,bs)
+                            stateChanged = True
         else: 
             reward += -500
             self.fails +=1
-        if stateChanged:
+        if stateChanged:    
             #assigning state
             handarray = [domino.sides for domino in self.player.hand]
             placements = bs.getPlacements()
@@ -169,7 +172,9 @@ class DominoTrainEnv(Env):
                 "trains": [[train.id,train.trainUp]for train in bs.trains]
             }
             self.state = state
+        
         done = self.game.done
+        #hard limit on game length since, the ai can make invalid plays which could loop forever
         if self.fails >=10000: done = True
         if done:
             # add negative reward for points remaining in hand at game end

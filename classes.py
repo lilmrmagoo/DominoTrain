@@ -1,3 +1,4 @@
+# %load classes.py
 import functools
 import random
 class Domino():
@@ -110,6 +111,7 @@ class Game():
         self.trains = []
         self.done = False
         self.numPlayers = numPlayers
+        self.unsastifiedDouble = None
         if(numPlayers<= 4): Player.handSize = 15
         elif(numPlayers<=6): Player.handSize = 12
         elif(numPlayers<=8): Player.handSize = 10
@@ -119,7 +121,6 @@ class Game():
         doubles = [player.highestDouble() for player in self.players]
         highestDouble = max(doubles)
         firstPlayer = doubles.index(highestDouble)
-        self.currentPlayer = firstPlayer
         firstDomino = self.players[firstPlayer].getDominoFromSides(highestDouble,highestDouble)
         for player in self.players: 
             player.intializeTrain()
@@ -128,10 +129,8 @@ class Game():
         self.centerDouble = max(doubles)
         Train.startingSide = self.centerDouble
         self.players[firstPlayer].play(firstDomino,0,firstDouble=True) #removing first double
-        self.stepPlayer() #first player skiping turn
-    def stepPlayer(self):
-        self.currentPlayer += 1 
-        if (self.currentPlayer>=self.numPlayers): self.currentPlayer = 0# looping if its not an actual player
+        self.startingPlayer = self.nextPlayer(firstPlayer)
+        self.prevPlayer = None
     def getTrain(self,id:int):
         if id == 8: return self.mexican
         else:
@@ -148,12 +147,16 @@ class Game():
                     return p
             else:
                 return None
+    def nextPlayer(self, currPlayer:int):
+        next = currPlayer+1 
+        if (next>=self.numPlayers): next = 0 # looping around if its not an actual player
+        return next
 
 class BoardState():
-    def __init__(self, trains:list[Train],centerDouble:int, mexican:Train|None = None ):
+    def __init__(self, trains:list[Train],centerDouble:int, mexican:Train|None = None,unsastifiedDouble=None):
         self.mexican = mexican
         self.trains = trains
-        self.unsastifiedDouble = None
+        self.unsastifiedDouble = unsastifiedDouble
     #train up returns only sides that are on trains with thier trains up
     #maybe this signature should be changed to just take a list of trains? and let caller deal with filtering?
     def getPlacements(self, trainUp: bool=False,include:list[Train]=[], exclude:list[Train]=[]):
@@ -194,7 +197,8 @@ class BoardState():
             tuplist = [tuple(list) for list in action]
             if tuple(tuplist) == play:
                 valid = True
+                print(f"valid play: {play}")
         return valid
     @staticmethod
     def fromGame(game:Game):
-        return BoardState(game.trains,game.centerDouble, game.mexican)
+        return BoardState(game.trains,game.centerDouble, game.mexican,game.unsastifiedDouble)
