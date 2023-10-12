@@ -1,17 +1,19 @@
-# %load DominoEnv.py
-from gym import Env
-from gym.spaces import Dict, Discrete , MultiDiscrete, Box, Sequence
+from classes import Game, BoardState, Train, Player, Domino
+import gymnasium as gym
+from gymnasium import Env
+from gymnasium.spaces import Dict, Discrete , MultiDiscrete, Box, Sequence, utils
 import numpy as np
 class DominoTrainEnv(Env):
     def __init__(self,numPlayers:int):
         # Actions we can take, 13,13 for possible domino sides, [9,13] for possible domino placements
-        self.action_space = MultiDiscrete(np.array([[13, 13], [9, 13]]))
-        # Temperature array
+        #action space needed to be changed as it would cause an unknown issue with 
+        #self.action_space = MultiDiscrete(np.array([[13, 13], [9, 13]])) 
+        self.action_space = Box(low=np.array([[0, 0], [0, 0]]), high=np.array([[12, 12], [8, 12]]), dtype=np.int8 )
+        # observation space
         obsv =  {
-        "hand": Sequence(MultiDiscrete(np.array([13, 13]), dtype=np.int8)),
-        "placements": Sequence(MultiDiscrete(np.array([9, 13]), dtype=np.int8)),
-        "available-actions": Sequence(MultiDiscrete(np.array([[13, 13], [9, 13]]), dtype=np.int8)),
-        "trains": Sequence(MultiDiscrete(np.array([9, 2]), dtype=np.int8))
+        "hand": Box(high=np.array([[13, 13]*79]), dtype=np.int8,low=np.array([[-1, -1]*79])),
+        "placements": Box(high=np.array([[9, 13]*208]), dtype=np.int8,low=np.array([[-1,-1]*208])),
+        "trains": Box(high=np.array([[9, 2]*8]), dtype=np.int8,low=np.array([[-1,-1]*8]))
         }
         self.observation_space = Dict(obsv)
         #setup game
@@ -20,15 +22,27 @@ class DominoTrainEnv(Env):
         bs = BoardState.fromGame(self.game)
         handarray = [domino.sides for domino in self.player.hand]
         placements = bs.getPlacements()
-        state = {
-            "hand": handarray,
-            "placements": placements,
-            "available-actions": bs.availablePlays(self.player),
-            "trains": [[train.id,train.trainUp]for train in bs.trains]
-        }
+        state = self.getState()
         self.state = state
         self.fails = 0
+    @staticmethod
+    def __padArray(array,len:int):
+        return np.pad(array,((0,len),(0,0)),mode='constant',constant_values=-1)
+    def getState(self):
+        bs = BoardState.fromGame(self.game)
+        handarray = np.array([domino.sides for domino in self.player.hand], dtype=np.int8)
+        placements = np.array(bs.getPlacements(), dtype=np.int8)
+        train_info = np.array([[train.id, int(train.trainUp)] for train in bs.trains], dtype=np.int8)
         
+        hand_padding = DominoTrainEnv.__padArray(handarray, 79-len(handarray))
+        placement_padding = DominoTrainEnv.__padArray(placements, 208-len(placements))
+        train_padding = DominoTrainEnv.__padArray(train_info, 8-len(train_info))
+        state =  {
+            "hand": hand_padding.ravel().reshape((1,158)),
+            "placements": placement_padding.ravel().reshape((1,416)),
+            "trains": train_padding.ravel().reshape((1,16))
+        }
+        return state
     def play(self,domino:Domino, placement,player:Player, bs:BoardState):
         print(f"attempting to play {domino} on {placement} from {player}")
         game = self.game
@@ -142,7 +156,7 @@ class DominoTrainEnv(Env):
                             domino = action[0]
                             domino = self.player.getDominoFromSides(*domino)
                             self.play(domino,action[1],self.player,bs)
-                            reward += domino.calc_points()
+                            reward += domino.calc_points() + 60
                             stateChanged = True
                         #invalid action   
                         
@@ -159,24 +173,15 @@ class DominoTrainEnv(Env):
                             self.play(ranDomino,ranAction[1],player,bs)
                             stateChanged = True
         else: 
-            reward += -500
+            reward += -50
             self.fails +=1
         if stateChanged:    
-            #assigning state
-            handarray = [domino.sides for domino in self.player.hand]
-            placements = bs.getPlacements()
-            state = {
-                "hand": handarray,
-                "placements": placements,
-                "available-actions": bs.availablePlays(self.player),
-                "trains": [[train.id,train.trainUp]for train in bs.trains]
-            }
-            self.state = state
+            self.state = self.getState()
         
         done = self.game.done
         #hard limit on game length since, the ai can make invalid plays which could loop forever
-        if self.fails >=10000: done = True
-        if done:
+        if self.fails >=10: done = True
+        elif done:
             # add negative reward for points remaining in hand at game end
             reward += -1*self.player.pointsInHand()  
         
@@ -184,25 +189,16 @@ class DominoTrainEnv(Env):
         info = {}
         
         # Return step information
-        return self.state, reward, done, info
+        return self.state, reward, done,False, info
 
     def render(self):
         # Implement viz
         pass
     
-    def reset(self):
+    def reset(self, seed=None):
         self.game = Game(self.game.numPlayers)
         self.player = self.game.getPlayer(0)
-        bs = BoardState.fromGame(self.game)
-        handarray = [domino.sides for domino in self.player.hand]
-        placements = bs.getPlacements()
-        state = {
-            "hand": handarray,
-            "placements": placements,
-            "available-actions": bs.availablePlays(self.player),
-            "trains": [[train.id,train.trainUp]for train in bs.trains]
-        }
-        self.state = state
+        self.state = self.getState()
         self.fails = 0
-        return self.state
+        return self.state, {}
     
