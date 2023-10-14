@@ -37,7 +37,10 @@ class Train():
         self.trainUp = False
         self.id = id
     def add(self,placement,domino):
-        placeIndex = self.openSides.index(placement)
+        try:
+           placeIndex = self.openSides.index(placement)
+        except ValueError:
+            return False  # Item not found in the iterable
         trainSide = self.openSides[placeIndex]
         if(trainSide in domino.sides):
             if(domino.isDouble):
@@ -131,6 +134,7 @@ class Game():
         self.players[firstPlayer].play(firstDomino,0,firstDouble=True) #removing first double
         self.startingPlayer = self.nextPlayer(firstPlayer)
         self.prevPlayer = None
+        self.winner = None
     def getTrain(self,id:int):
         if id == 8: return self.mexican
         else:
@@ -148,9 +152,10 @@ class Game():
             else:
                 return None
     def nextPlayer(self, currPlayer:int):
-        next = currPlayer+1 
-        if (next>=self.numPlayers): next = 0 # looping around if its not an actual player
-        return next
+        return (currPlayer +1) % self.numPlayers
+    def end(self, winner:int=None):
+        self.done = True
+        self.winner = winner
 
 class BoardState():
     def __init__(self, trains:list[Train],centerDouble:int, mexican:Train|None = None,unsastifiedDouble=None):
@@ -193,11 +198,11 @@ class BoardState():
     def isValidPlay(self, player:Player, action:list[list]):
         valid = False
         plays = self.availablePlays(player)
+        if len(plays)==0: valid = True
         for play in plays:
             tuplist = [tuple(list) for list in action]
             if tuple(tuplist) == play:
                 valid = True
-                print(f"valid play: {play}")
         return valid
     @staticmethod
     def fromGame(game:Game):
