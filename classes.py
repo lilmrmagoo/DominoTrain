@@ -59,11 +59,12 @@ class Train():
 class Player():
     handSize = 12
     nextID = 0 
-    def __init__(self,boneYard:BoneYard):
-        self.id = Player.nextID
-        Player.nextID +=1
-        self.hand = []
-        for _ in range(Player.handSize): self.hand.append(boneYard.draw()) 
+    def __init__(self,boneYard:BoneYard=None):
+        if boneYard is not None:
+            self.id = Player.nextID
+            Player.nextID +=1
+            self.hand = []
+            for _ in range(Player.handSize): self.hand.append(boneYard.draw()) 
     def highestDouble(self):
         highest = -1
         for domino in self.hand:
@@ -104,7 +105,11 @@ class Player():
     def __str__(self):
         return f"id:{self.id} train:{self.train.id}"
     @staticmethod
-    def fromHandAndTrain(hand:list[Domino],train:Train)
+    def fromHandAndTrain(hand:list[Domino],train:Train):
+        player = Player()
+        player.hand = hand
+        player.train = train
+        return player
 
 
 

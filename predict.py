@@ -6,6 +6,7 @@ class rlGame():
     def __init__(self,numofplayers,highestdouble):
         self.centerdouble = highestdouble
         Train.startingSide = highestdouble
+        self.trains = []
         for i in range(0,numofplayers):
             self.trains.append(Train(i))
         if numofplayers<8:
@@ -72,7 +73,7 @@ class rlGame():
                 mask[3][placement[1]-1] = True
         return mask
 try:
-    game = rlGame(int(input("How many Players?: ")))
+    game = rlGame(int(input("How many Players?: ")),int(input("highest double?: ")))
     model_name = input("Model_name: ")
     model = MaskablePPO.load(model_name)
 except ValueError:
