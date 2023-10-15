@@ -251,7 +251,7 @@ class DominoTrainEnvMaskable(DominoTrainEnv):
             zero13 =  np.zeros(13,dtype=np.bool)
             zero9 = np.zeros(9,dtype=np.bool)
             mask = [zero13,zero13,zero9,zero13]
-            for action in bs.availablePlays(self.player):
+            for action in plays:
                 domino = action[0]
                 placement = action[1]
                 mask[0][domino[0]-1] = True

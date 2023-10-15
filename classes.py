@@ -103,7 +103,8 @@ class Player():
         return domino
     def __str__(self):
         return f"id:{self.id} train:{self.train.id}"
-    
+    @staticmethod
+    def fromHandAndTrain(hand:list[Domino],train:Train)
 
 
 

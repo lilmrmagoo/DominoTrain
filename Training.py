@@ -77,7 +77,7 @@ env = ActionMasker(env, mask_fn)  # Wrap to enable masking
 
 
 if not override: model = MaskablePPO(MaskableMultiInputActorCriticPolicy, env,verbose=verbose, device=device)
-else: model = MaskablePPO(MaskableMultiInputActorCriticPolicy, env,verbose=verbose, device=device)
+else: model = MaskablePPO.load(model_name)
 try:
     model.learn(total_timesteps=time, progress_bar=progress)
 except KeyboardInterrupt:  # Graceful interrupt with Ctrl+C
