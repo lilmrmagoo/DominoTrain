@@ -37,7 +37,7 @@ parser.add_argument("--override", action="store_true", help="Boolean to override
 parser.add_argument("--verbose", action="store_true", help="Boolean to enable verbose (default: false)")
 parser.add_argument("--version", type=str, default="1", help="a version to append to the model name")
 parser.add_argument("--time", type=int, default=int(5e5), help="number of timesteps to train for, default: 5e5")
-parser.add_argument("--progress", type=bool, default=True, help="wheteher or not to show progress bar")
+parser.add_argument("--progress", action="store_false", help="wheteher or not to show progress bar")
 parser.add_argument("--device", type=str, default="auto",choices=('cuda','auto','cpu'), help="the device to use")
 parser.add_argument("--masked", action="store_true", help="Boolean to determine if the masked ppo model should be used(default: false)")
 
@@ -72,12 +72,14 @@ def mask_fn(env: gym.Env) -> np.ndarray:
     return env.getMaskDiscrete()
 
 
-env = DominoTrainEnvMaskable(6, 10)  # Initialize env
+env = DominoTrainEnvMaskable(num_players, 10)  # Initialize env
 env = ActionMasker(env, mask_fn)  # Wrap to enable masking
 
 
-if not override: model = MaskablePPO(MaskableMultiInputActorCriticPolicy, env,verbose=verbose, device=device)
-else: model = MaskablePPO.load(model_name)
+if override: model = MaskablePPO(MaskableMultiInputActorCriticPolicy, env,verbose=verbose, device=device)
+else: 
+    model = MaskablePPO.load(model_name)
+    model.set_env(env)
 try:
     model.learn(total_timesteps=time, progress_bar=progress)
 except KeyboardInterrupt:  # Graceful interrupt with Ctrl+C

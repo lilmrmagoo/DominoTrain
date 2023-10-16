@@ -254,17 +254,17 @@ class DominoTrainEnvMaskable(DominoTrainEnv):
             for action in plays:
                 domino = action[0]
                 placement = action[1]
-                mask[0][domino[0]-1] = True
-                mask[1][domino[1]-1] = True
-                mask[2][placement[0]-1] = True
-                mask[3][placement[1]-1] = True
+                mask[0][domino[0]] = True
+                mask[1][domino[1]] = True
+                mask[2][placement[0]] = True
+                mask[3][placement[1]] = True
         return mask
     def getMaskDiscrete(self):
         bs = BoardState.fromGame(self.game)
-        mask = np.zeros(19773)
+        mask = np.zeros(19773,dtype=bool)
         for action in bs.availablePlays(self.player):
             index = self.actions.index(action)
-            mask[index] = 1
+            mask[index] = True
         return mask
     def convertAction(self, action):
         return self.actions[action] # converts index into action
