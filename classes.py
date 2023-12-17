@@ -46,7 +46,8 @@ class Train():
             if(domino.isDouble):
                 self.openSides.pop(placeIndex)
                 self.openSides.append(domino.sides[0])
-                self.openSides.append(domino.sides[1])
+                self.openSides.append(domino.sides[0])
+                self.openSides.append(domino.sides[0])
             else:
                 self.openSides.pop(placeIndex)
                 self.openSides.append(domino.sides[1-domino.evalute_side(trainSide)])
@@ -181,7 +182,8 @@ class BoardState():
         else:
             for train in trains: 
                 if train not in exclude:
-                    for side in train.openSides: placements.append((train.id,side))
+                    for side in train.openSides: 
+                        placements.append((train.id,side))
         return placements
     def getTrain(self, id):
         for train in self.trains:
@@ -195,8 +197,10 @@ class BoardState():
             places = placements
         elif player.train.trainUp:
             places = [(player.id, side) for side in player.train.openSides]
-        else: places = self.getPlacements(trainUp=True, include=[player.train])
+        else: 
+            places = self.getPlacements(trainUp=True, include=[player.train])
         for placement in places:
+            if placement is None:print("none placement")
             for domino in player.hand:
                 eval = domino.evalute_side(placement[1])
                 if( eval is not None): plays.append((domino.sides, placement))
@@ -204,7 +208,7 @@ class BoardState():
     def isValidPlay(self, player:Player, action:list[list]):
         valid = False
         plays = self.availablePlays(player)
-        if len(plays)==0: valid = True
+        if len(plays)==0: valid = None
         for play in plays:
             tuplist = [tuple(list) for list in action]
             if tuple(tuplist) == play:

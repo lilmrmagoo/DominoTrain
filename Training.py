@@ -32,26 +32,26 @@ parser = argparse.ArgumentParser(description="Command line arguments parser")
 # Add the command line arguments
 parser.add_argument("--players", type=int, default=6,choices=range(2, 9), help="Number of players (2-8)")
 parser.add_argument("--name", type=str,default="", help="Name to save the model under (optional)")
-parser.add_argument("--save", type=bool, default=True, help="Boolean to determine if it should save (default: true)")
+parser.add_argument("--NoSave", action="store_false", help="Boolean to determine if it should save (default: true)")
 parser.add_argument("--override", action="store_true", help="Boolean to override if a model has the same name (default: false)")
 parser.add_argument("--verbose", action="store_true", help="Boolean to enable verbose (default: false)")
 parser.add_argument("--version", type=str, default="1", help="a version to append to the model name")
 parser.add_argument("--time", type=int, default=int(5e5), help="number of timesteps to train for, default: 5e5")
 parser.add_argument("--progress", action="store_false", help="wheteher or not to show progress bar")
 parser.add_argument("--device", type=str, default="auto",choices=('cuda','auto','cpu'), help="the device to use")
-parser.add_argument("--masked", action="store_true", help="Boolean to determine if the masked ppo model should be used(default: false)")
+parser.add_argument("--randomplayers", action="store_true", help="will randomise the number of players for each episode, overrides --player")
 
 # Parse the command line arguments
 args = parser.parse_args()
 
 # Assign the parsed arguments to variables
 num_players = args.players
+random_players = args.randomplayers
 model_name = args.name
-should_save = args.save
+should_save = args.NoSave
 override = args.override
 version = args.version
 progress = args.progress
-masked = args.masked
 device = args.device
 verbose = int(args.verbose)
 time = args.time

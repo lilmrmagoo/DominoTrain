@@ -3,8 +3,19 @@ from classes import Train,Domino,BoardState,Player
 from sb3_contrib import MaskablePPO
 import argparse
 import traceback
+import readline
+
+def complete(text, state):
+    options = [f for f in os.listdir() if f.startswith(text)]
+    if state < len(options):
+        return options[state]
+    else:
+        return None
+
+readline.parse_and_bind("tab: complete")
+readline.set_completer(complete)
 parser = argparse.ArgumentParser(description="Command line arguments parser")
-parser.add_argument("--traceback", action="store_true", help="Boolean to override if a model has the same name (default: false)")
+parser.add_argument("--traceback", action="store_true", help="enables traceback for errors")
 args = parser.parse_args()
 usetraceback = args.traceback
 
@@ -16,10 +27,8 @@ class rlGame():
         for i in range(0,numofplayers):
             self.trains.append(Train(i))
         if numofplayers<8:
-            global mexican
-            mexican = Train(8)
-            mexican.trainUp=True
-        global aiTrain
+            self.mexican = Train(8)
+            self.mexican.trainUp=True
         train = self.trains[0]
         hand = []
         self.player = Player.fromHandAndTrain(hand,train)
@@ -34,21 +43,27 @@ class rlGame():
         self.actions = tuple(self.actions)
 
     def makeBoardstate(self):
-        return BoardState(self.trains,mexican=mexican,centerDouble=self.centerdouble,unsastifiedDouble=self.unsatisfieddouble)
+        return BoardState(self.trains,mexican=self.mexican,centerDouble=self.centerdouble,unsastifiedDouble=self.unsatisfieddouble)
 
     def getDominoFromHand(self,s1,s2):
         for domino in self.player.hand:
             if (domino.sides == (s1,s2) or domino.sides == (s2,s1)):
                 return domino
     def play(self, domino:Domino, placement:int, train:Train|None=None):
+        if self.unsatisfieddouble is not None and domino.sides[0] == self.unsatisfieddouble[1]:
+            self.unsatisfieddouble = None
+        if domino.isDouble:
+            self.unsatisfieddouble = (train.id,domino.sides[0])
         return self.player.play(domino=domino,placement=placement,train=train)
     def addHand(self,s1,s2):
         self.player.hand.append(Domino(s1,s2))
-
-    def trainAdd(self,trainid,placement, s1,s2,):
-        train = self.trains[trainid]
-        if s1 == s2: self.unsatisfieddouble = s1
-        return train.add(placement,self.getDominoFromHand(s1,s2))
+    def trainAdd(self,trainid,placement, s1,s2):
+        if self.unsatisfieddouble is not None and s1 == self.unsatisfieddouble[1]:
+            self.unsatisfieddouble = None
+        if trainid == 8: train:Train = self.mexican
+        else: train:Train = self.trains[trainid]
+        if s1 == s2: self.unsatisfieddouble = (trainid,s1)
+        return train.add(placement,Domino(s1,s2))
     def toggleUpTrain(self,trainid):
         train = self.trains[trainid]
         train.trainUp = not train.trainUp
@@ -104,9 +119,10 @@ class rlGame():
         #return [[action[0],action[1]],[action[2],action[3]]]  
 
 try:
-    game = rlGame(int(input("How many Players?: ")),int(input("highest double?: ")))
+    
     model_name = input("Model_name: ")
     model = MaskablePPO.load(model_name)
+    game = rlGame(int(input("How many Players?: ")),int(input("highest double?: ")))
 except ValueError:
     print("invalid input")
 except Exception as e:
@@ -122,36 +138,56 @@ while True:
             action, _states = model.predict(observation=observation,action_masks=mask)
             action = game.convertAction(action)
             bs = game.makeBoardstate()
-            while not bs.isValidPlay(game.player,action):
+            while (valid := bs.isValidPlay(game.player,action))is not None and not valid:
                 action, _states = model.predict(observation=observation,action_masks=mask)
                 action = game.convertAction(action)
-            print(f"place {action[0]} on {action[1]}")
+            if valid is None: print("pickup")
+            else: print(f"place {action[0]} on {action[1]}")
         elif command == "add" or command == "a":
             s1 = int(args[0])
             s2 = int(args[1])
             game.addHand(s1,s2)
         elif command == "play" or command == "p":
             trainid = int(args[0])
-            placement = int(args[1])
             s1 = int(args[2])
             s2 = int(args[3])
-            success = game.trainAdd(trainid,placement,s1,s2)
+            success = game.trainAdd(trainid,s1,s1,s2)
             print(success)
         elif command == "self" or command == "s":
             trainid = int(args[2])
             placement = int(args[3])
             s1 = int(args[0])
             s2 = int(args[1])
-            train = game.trains[trainid]
+            if trainid == 8: train = game.mexican
+            else: train = game.trains[trainid]
             domino = game.getDominoFromHand(s1,s2)
             success = game.play(domino,placement,train)
             print(success)
         elif command == "trainup":
-            game.toggleUpTrain(int(args[0]))
+            if game.toggleUpTrain(int(args[0])): print("train is now up")
+            else: print("train is now down")
         elif command == "mask":
-            print(np.count_nonzero(game.getMaskDiscrete()))
+            print("number of allowed actions",np.count_nonzero(game.getMaskDiscrete()))
         elif command == "state":
             print(game.getState())
+        elif command == "trains":
+            for train in game.trains: print(train)
+            print(game.mexican)
+        elif command == "hand":
+            for domino in game.player.hand: print(domino)
+        elif command == "placements":
+            print(game.makeBoardstate().getPlacements(trainUp=True, include=[game.player.train]))
+        elif command == "availplays":
+            print(game.makeBoardstate().availablePlays(game.player))
+        elif command == "remove" or command == "r":
+            s1 = int(args[0])
+            s2 = int(args[1])
+            domino = game.getDominoFromHand(s1,s2)
+            if domino is not None:
+                game.player.hand.remove(domino)
+                print("removed")
+            else:
+                print("no matching domino in hand")
         else: print("invalid command")
     except Exception as e:
         if usetraceback: traceback.print_exception(e)
