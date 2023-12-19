@@ -5,7 +5,7 @@ from gymnasium.spaces import Dict, Discrete , MultiDiscrete, Box, Sequence, util
 import numpy as np
 import random
 class DominoTrainEnv(Env):
-    def __init__(self,numPlayers:int, maxFails:int):
+    def __init__(self,numPlayers:int, maxFails:int, randomPlayerNum:bool=False):
         # Actions we can take, 13,13 for possible domino sides, [9,13] for possible domino placements
         #action space needed to be changed as it would cause an unknown issue with 
         #self.action_space = MultiDiscrete(np.array([[13, 13], [9, 13]])) 
@@ -18,6 +18,8 @@ class DominoTrainEnv(Env):
         }
         self.observation_space = Dict(obsv)
         #setup game
+        self.randomNumOfPlayers=randomPlayerNum
+        if self.randomNumOfPlayers: numPlayers = random.randint(2,8)
         self.game = Game(numPlayers)
         self.logs = ""
         self.player = self.game.getPlayer(0)
@@ -28,6 +30,7 @@ class DominoTrainEnv(Env):
         if self.game.startingPlayer != 0:
             bs = BoardState.fromGame(self.game)
             self.playOthers(bs,self.game.startingPlayer)
+        self.clear_log_file()
     def playOthers(self, bs:BoardState, start_index):
         stateChanged = False
         players = self.game.players
@@ -53,7 +56,7 @@ class DominoTrainEnv(Env):
         bs = BoardState.fromGame(self.game)
         handarray = np.array([domino.sides for domino in self.player.hand], dtype=np.int8)
         placements = np.array(bs.getPlacements(), dtype=np.int8)
-        train_info = np.array([[train.id, int(train.trainUp)] for train in [*bs.trains,bs.mexican]], dtype=np.int8)
+        train_info = np.array([[train.id, int(train.trainUp)] for train in [*bs.trains,bs.mexican] if train is not None], dtype=np.int8)
         self.log(handarray.shape)
         hand_padding = DominoTrainEnv._padArray(handarray, 79-len(handarray))
         placement_padding = DominoTrainEnv._padArray(placements, 208-len(placements))
@@ -213,27 +216,37 @@ class DominoTrainEnv(Env):
                 file.write(self.logs + '\n\n\n')
         except Exception as e:
             print(f"Error: {e}")
+    def clear_log_file(clear,filename='log.txt'):
+        with open(filename, 'w'):
+            pass
     def reset(self, seed=None, options=None):
-        self.game = Game(self.game.numPlayers)
+        random.seed(seed)
+        np.random.seed(seed)
+        numPlayers = self.game.numPlayers
+        if self.randomNumOfPlayers: numPlayers = random.randint(2,8)
+        self.log("------RESET------")
+        self.log(f"starting new game with {numPlayers} players")
+        self.log_to_file()
+        self.logs = ""
+        self.game = Game(numPlayers)
         self.player = self.game.getPlayer(0)
         self.state = self.getState()
         self.fails = 0
-        self.log("------RESET------")
-        self.log_to_file()
-        self.logs = ""
-        random.seed(seed)
-        np.random.seed(seed)
+        
         return self.state, {}
 class DominoTrainEnvMaskable(DominoTrainEnv):
-    def __init__(self,numPlayers:int,maxFails:int):
+    def __init__(self,numPlayers:int,maxFails:int, randomPlayerNum:bool=False):
         # Actions we can take, 13,13 for possible domino sides, [9,13] for possible domino placements
-        super().__init__(numPlayers,maxFails)
+        super().__init__(numPlayers,maxFails,randomPlayerNum)
         self.actions = []
+        self.action_map = {}
         allDominos = [(side1,side2) for side1 in range(0,13) for side2 in range(0,13)]
         placements = [(train,side) for side in range(0,13) for train in range(0,9)]
         for domino in allDominos:
            for placement in placements:
-               self.actions.append((domino,placement))
+               action = (domino,placement)
+               self.action_map[action] = len(self.actions) #must be done first or do len -1 to keep indexes matching
+               self.actions.append(action)
         self.actions = tuple(self.actions)
         self.action_space = Discrete(19773)
         #self.action_space = MultiDiscrete([13, 13, 9, 13], dtype=np.int8)
@@ -263,7 +276,7 @@ class DominoTrainEnvMaskable(DominoTrainEnv):
         bs = BoardState.fromGame(self.game)
         mask = np.zeros(19773,dtype=bool)
         for action in bs.availablePlays(self.player):
-            index = self.actions.index(action)
+            index = self.action_map[action]
             mask[index] = True
         return mask
     def convertAction(self, action):

@@ -130,12 +130,22 @@ class Game():
             self.players.append(Player(self.boneyard))
         doubles = [player.highestDouble() for player in self.players]
         highestDouble = max(doubles)
-        firstPlayer = doubles.index(highestDouble)
-        firstDomino = self.players[firstPlayer].getDominoFromSides(highestDouble,highestDouble)
+        if highestDouble != -1:
+            firstPlayer = doubles.index(highestDouble)
+            firstDomino = self.players[firstPlayer].getDominoFromSides(highestDouble,highestDouble)
+        else:
+            while highestDouble == -1: 
+                for player in self.players:
+                    domino = player.pickup(self.boneyard)
+                    if domino.isDouble:
+                        highestDouble = domino.sides[0]
+                        firstDomino = domino
+                        firstPlayer = self.players.index(player)
         for player in self.players: 
             player.intializeTrain()
             self.trains.append(player.train)
         if (len(self.players)<8): self.mexican = Train(8)
+        else: self.mexican = None
         self.centerDouble = max(doubles)
         Train.startingSide = self.centerDouble
         self.players[firstPlayer].play(firstDomino,0,firstDouble=True) #removing first double
@@ -172,7 +182,8 @@ class BoardState():
     #train up returns only sides that are on trains with thier trains up
     #maybe this signature should be changed to just take a list of trains? and let caller deal with filtering?
     def getPlacements(self, trainUp: bool=False,include:list[Train]=[], exclude:list[Train]=[]):
-        trains = [*self.trains,self.mexican]
+        trains = [*self.trains]
+        if self.mexican is not None: trains.append(self.mexican)
         placements = []
         if trainUp:
             for train in trains:
