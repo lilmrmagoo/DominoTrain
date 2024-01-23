@@ -3,17 +3,17 @@ from classes import Train,Domino,BoardState,Player
 from sb3_contrib import MaskablePPO
 import argparse
 import traceback
-import readline
+#import readline
 
-def complete(text, state):
-    options = [f for f in os.listdir() if f.startswith(text)]
-    if state < len(options):
-        return options[state]
-    else:
-        return None
+# def complete(text, state):
+#     options = [f for f in os.listdir() if f.startswith(text)]
+#     if state < len(options):
+#         return options[state]
+#     else:
+#         return None
 
-readline.parse_and_bind("tab: complete")
-readline.set_completer(complete)
+# readline.parse_and_bind("tab: complete")
+# readline.set_completer(complete)
 parser = argparse.ArgumentParser(description="Command line arguments parser")
 parser.add_argument("--traceback", action="store_true", help="enables traceback for errors")
 args = parser.parse_args()
@@ -126,7 +126,7 @@ try:
 except ValueError:
     print("invalid input")
 except Exception as e:
-    print(e)
+    traceback.print_exception(e)
 while True: 
     try:
         entered = input("command: ")
@@ -149,14 +149,14 @@ while True:
             game.addHand(s1,s2)
         elif command == "play" or command == "p":
             trainid = int(args[0])
-            s1 = int(args[2])
-            s2 = int(args[3])
+            s1 = int(args[1])
+            s2 = int(args[2])
             success = game.trainAdd(trainid,s1,s1,s2)
             print(success)
         elif command == "self" or command == "s":
             trainid = int(args[2])
-            placement = int(args[3])
             s1 = int(args[0])
+            placement = s1
             s2 = int(args[1])
             if trainid == 8: train = game.mexican
             else: train = game.trains[trainid]
